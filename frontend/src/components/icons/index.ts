@@ -1,0 +1,5 @@
+export { CartIcon } from './CartIcon'
+export { CashStackIcon } from './CashStackIcon'
+export { PlusIcon } from './PlusIcon'
+export { ReceiptIcon } from './ReceiptIcon'
+export { UploadIcon } from './UploadIcon'
