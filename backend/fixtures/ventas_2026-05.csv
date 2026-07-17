@@ -1,0 +1,3 @@
+id_venta,fecha,cliente,producto,cantidad,importe,medio_pago
+V-1001,2026-05-02,Comercial Andrade,Servicio de consultoria,1,18500.00,transferencia
+V-1002,2026-05-04,Garcia SA,Notebook Lenovo,2,1234.56,tarjeta

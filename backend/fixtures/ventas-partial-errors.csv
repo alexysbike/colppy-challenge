@@ -1,0 +1,4 @@
+id_venta,fecha,cliente,producto,cantidad,importe,medio_pago
+V-5001,2026-05-02,Valid Client,Valid Product,1,100.00,transferencia
+INVALID,2026-05-03,Bad Id,Product,1,50.00,efectivo
+V-5002,2026-05-04,Another Client,Another Product,2,75.50,tarjeta
