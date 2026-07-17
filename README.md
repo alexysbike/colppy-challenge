@@ -153,6 +153,14 @@ La documentación detallada vive en `specs/`:
 
 **Frontend:** pantalla única → hooks por endpoint → capa `Api`/`HttpService` → backend.
 
+### Rendimiento
+
+**Riesgos identificados:** el endpoint de resumen (`GET /sales/summary`) carga y agrega en memoria todas las ventas del período; con decenas de miles de filas convendría agregar en SQL (`SUM`/`COUNT`/`GROUP BY`). El listado paginado hace un `COUNT(*)` por request; con volúmenes altos, el offset profundo se degrada. La importación CSV parsea el archivo completo en memoria (límite 5 MB) y escribe en lotes de 500 filas dentro de una transacción.
+
+**Mitigaciones actuales:** índice en `sales.date`, paginación con `limit` máximo 100, inserción por lotes e idempotencia por `externalId` único. SQLite es adecuado para el alcance del challenge; en producción migraría a PostgreSQL con agregaciones en base.
+
+**Cómo lo mediría:** importar `backend/fixtures/ventas_10000.csv` y medir latencia de `/sales/summary`, `/sales` y `POST /sales/import` con `curl -w '%{time_total}'` o `autocannon`; revisar `EXPLAIN QUERY PLAN` en SQLite; en el frontend, pestaña Network de DevTools para tiempo de carga de KPIs y tabla.
+
 ### Estructura del proyecto
 
 ```
@@ -342,6 +350,14 @@ Detailed documentation lives in `specs/`:
 **Backend:** pure domain → use cases → infrastructure (Drizzle, CSV, Express) → presentation (routes, Zod, OpenAPI).
 
 **Frontend:** single screen → per-endpoint hooks → `Api`/`HttpService` layer → backend.
+
+### Performance
+
+**Identified risks:** the summary endpoint (`GET /sales/summary`) loads and aggregates all sales in the date range in memory; at tens of thousands of rows, SQL aggregation (`SUM`/`COUNT`/`GROUP BY`) would be preferable. The paginated list runs a `COUNT(*)` on every request; at high volume, deep offsets degrade. CSV import parses the entire file in memory (5 MB limit) and writes in batches of 500 rows inside a transaction.
+
+**Current mitigations:** index on `sales.date`, pagination with a max `limit` of 100, batch inserts, and idempotency via unique `externalId`. SQLite is fine for the challenge scope; in production I would move to PostgreSQL with server-side aggregation.
+
+**How I would measure it:** import `backend/fixtures/ventas_10000.csv` and benchmark `/sales/summary`, `/sales`, and `POST /sales/import` with `curl -w '%{time_total}'` or `autocannon`; inspect `EXPLAIN QUERY PLAN` in SQLite; on the frontend, use DevTools Network to check KPI and table load times.
 
 ### Project structure
 
