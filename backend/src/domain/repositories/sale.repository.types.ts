@@ -42,6 +42,9 @@ export interface SalesSummary {
 export interface SaleRepository {
   create(input: CreateSaleInput): Promise<Sale>;
   findByExternalId(externalId: string): Promise<Sale | null>;
+  findByExternalIds(externalIds: string[]): Map<string, Sale>;
+  insertMany(inputs: CreateSaleInput[]): void;
+  runInTransaction<T>(fn: (repository: SaleRepository) => T): T;
   list(filters: SaleListFilters): Promise<Paginated<Sale>>;
   getSummary(from: string, to: string): Promise<SalesSummary>;
 }

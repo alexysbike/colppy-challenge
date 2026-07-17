@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, lte } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import type { Sale, PaymentMethod } from "../../domain/entities/sale";
 import { PAYMENT_METHODS } from "../../domain/entities/sale";
 import type { SaleRepository } from "../../domain/repositories/sale.repository";
@@ -26,6 +26,8 @@ function isUniqueConstraintError(error: unknown): boolean {
   const message = "message" in error ? String((error as { message: unknown }).message) : "";
   return message.includes("UNIQUE constraint failed");
 }
+
+const SQLITE_VARIABLE_LIMIT = 500;
 
 function toEntity(row: typeof sales.$inferSelect): Sale {
   return {
@@ -78,6 +80,63 @@ export class DrizzleSaleRepository implements SaleRepository {
       .limit(1);
 
     return rows[0] ? toEntity(rows[0]) : null;
+  }
+
+  findByExternalIds(externalIds: string[]): Map<string, Sale> {
+    const existing = new Map<string, Sale>();
+    if (externalIds.length === 0) {
+      return existing;
+    }
+
+    const uniqueIds = [...new Set(externalIds)];
+    for (let index = 0; index < uniqueIds.length; index += SQLITE_VARIABLE_LIMIT) {
+      const chunk = uniqueIds.slice(index, index + SQLITE_VARIABLE_LIMIT);
+      const rows = this.db.select().from(sales).where(inArray(sales.externalId, chunk)).all();
+
+      for (const row of rows) {
+        existing.set(row.externalId, toEntity(row));
+      }
+    }
+
+    return existing;
+  }
+
+  insertMany(inputs: CreateSaleInput[]): void {
+    if (inputs.length === 0) {
+      return;
+    }
+
+    const createdAt = new Date().toISOString();
+    for (let index = 0; index < inputs.length; index += SQLITE_VARIABLE_LIMIT) {
+      const chunk = inputs.slice(index, index + SQLITE_VARIABLE_LIMIT);
+
+      try {
+        this.db
+          .insert(sales)
+          .values(
+            chunk.map((input) => ({
+              externalId: input.externalId,
+              date: input.date,
+              customer: input.customer,
+              product: input.product,
+              quantity: input.quantity,
+              amount: input.amount,
+              paymentMethod: input.paymentMethod,
+              createdAt,
+            }))
+          )
+          .run();
+      } catch (error) {
+        if (isUniqueConstraintError(error)) {
+          throw new ConflictError("Duplicate sale during batch insert");
+        }
+        throw error;
+      }
+    }
+  }
+
+  runInTransaction<T>(fn: (repository: SaleRepository) => T): T {
+    return this.db.transaction((tx) => fn(new DrizzleSaleRepository(tx as unknown as DbClient)));
   }
 
   async list(filters: SaleListFilters): Promise<Paginated<Sale>> {

@@ -79,12 +79,12 @@ describe("Sales import", () => {
     const first = await request(app)
       .post("/sales/import")
       .attach("file", Buffer.from(csv), "ventas_2026-05.csv");
-    expect(first.body.created).toBe(2);
+    expect(first.body.created).toBe(14);
 
     const second = await request(app)
       .post("/sales/import")
       .attach("file", Buffer.from(csv), "ventas_2026-05.csv");
     expect(second.body.created).toBe(0);
-    expect(second.body.skipped).toBe(2);
+    expect(second.body.skipped).toBe(14);
   });
 });

@@ -119,4 +119,38 @@ describe("DrizzleSaleRepository", () => {
     expect(summary.totalAmount).toBe("0.00");
     expect(summary.byPaymentMethod.transferencia.totalAmount).toBe("0.00");
   });
+
+  it("finds multiple sales by external id", async () => {
+    await repository.create(baseInput);
+    await repository.create({ ...baseInput, externalId: "V-1002" });
+
+    const found = repository.findByExternalIds(["V-1001", "V-1002", "V-9999"]);
+
+    expect(found.size).toBe(2);
+    expect(found.get("V-1001")?.externalId).toBe("V-1001");
+    expect(found.get("V-1002")?.externalId).toBe("V-1002");
+  });
+
+  it("inserts many sales in one call", async () => {
+    repository.insertMany([baseInput, { ...baseInput, externalId: "V-1002", amount: "200.00" }]);
+
+    const first = await repository.findByExternalId("V-1001");
+    const second = await repository.findByExternalId("V-1002");
+
+    expect(first?.amount).toBe("18500.00");
+    expect(second?.amount).toBe("200.00");
+  });
+
+  it("rolls back all writes when a transaction fails", async () => {
+    await repository.create(baseInput);
+
+    expect(() =>
+      repository.runInTransaction((txRepo) => {
+        txRepo.insertMany([{ ...baseInput, externalId: "V-2001" }]);
+        txRepo.insertMany([{ ...baseInput, externalId: "V-1001" }]);
+      })
+    ).toThrow(ConflictError);
+
+    expect(await repository.findByExternalId("V-2001")).toBeNull();
+  });
 });

@@ -1,6 +1,5 @@
 import type { CreateSaleUseCase } from "./create-sale.use-case";
 import { parseSalesCsv } from "./sales-csv.parser";
-import { ConflictError } from "../../shared/errors/conflict.error";
 
 export interface ImportRowError {
   row: number;
@@ -27,23 +26,32 @@ export class ImportSalesCsvUseCase {
       errors: [...parsed.errors],
     };
 
-    for (const row of parsed.rows) {
-      try {
-        const outcome = await this.createSale.execute(row.input);
-        if (outcome.created) {
-          result.created += 1;
-        } else {
-          result.skipped += 1;
-        }
-      } catch (error) {
-        result.failed += 1;
-        result.errors.push({
-          row: row.rowNumber,
-          externalId: row.input.externalId,
-          error: error instanceof ConflictError ? error.message : "Failed to import row",
-        });
-      }
+    if (parsed.rows.length === 0) {
+      return result;
     }
+
+    const batchResults = this.createSale.importBatch(parsed.rows.map((row) => row.input));
+
+    batchResults.forEach((batchResult, index) => {
+      const row = parsed.rows[index]!;
+
+      if (batchResult.status === "created") {
+        result.created += 1;
+        return;
+      }
+
+      if (batchResult.status === "skipped") {
+        result.skipped += 1;
+        return;
+      }
+
+      result.failed += 1;
+      result.errors.push({
+        row: row.rowNumber,
+        externalId: row.input.externalId,
+        error: batchResult.error,
+      });
+    });
 
     return result;
   }

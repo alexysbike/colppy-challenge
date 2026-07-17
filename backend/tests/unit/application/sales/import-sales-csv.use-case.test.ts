@@ -1,21 +1,6 @@
 import type { CreateSaleUseCase } from "../../../../src/application/sales/create-sale.use-case";
 import { ImportSalesCsvUseCase } from "../../../../src/application/sales/import-sales-csv.use-case";
-import { ConflictError } from "../../../../src/shared/errors/conflict.error";
 import { ValidationError } from "../../../../src/shared/errors/validation.error";
-
-function buildSale(input: { externalId: string }) {
-  return {
-    id: 1,
-    externalId: input.externalId,
-    date: "2026-05-02",
-    customer: "Cliente",
-    product: "Producto",
-    quantity: 1,
-    amount: "100.00",
-    paymentMethod: "transferencia" as const,
-    createdAt: "2026-05-01T00:00:00.000Z",
-  };
-}
 
 describe("ImportSalesCsvUseCase", () => {
   const header = "id_venta,fecha,cliente,producto,cantidad,importe,medio_pago";
@@ -23,9 +8,7 @@ describe("ImportSalesCsvUseCase", () => {
 
   it("imports new rows as created", async () => {
     const createSale: CreateSaleUseCase = {
-      execute: jest
-        .fn()
-        .mockResolvedValue({ sale: buildSale({ externalId: "V-1001" }), created: true }),
+      importBatch: jest.fn().mockReturnValue([{ status: "created" }]),
     } as unknown as CreateSaleUseCase;
 
     const useCase = new ImportSalesCsvUseCase(createSale);
@@ -41,9 +24,7 @@ describe("ImportSalesCsvUseCase", () => {
 
   it("counts skipped rows when sale already exists with same data", async () => {
     const createSale: CreateSaleUseCase = {
-      execute: jest
-        .fn()
-        .mockResolvedValue({ sale: buildSale({ externalId: "V-1001" }), created: false }),
+      importBatch: jest.fn().mockReturnValue([{ status: "skipped" }]),
     } as unknown as CreateSaleUseCase;
 
     const useCase = new ImportSalesCsvUseCase(createSale);
@@ -56,7 +37,12 @@ describe("ImportSalesCsvUseCase", () => {
 
   it("counts failed rows on conflict", async () => {
     const createSale: CreateSaleUseCase = {
-      execute: jest.fn().mockRejectedValue(new ConflictError("Sale V-1001 already exists")),
+      importBatch: jest.fn().mockReturnValue([
+        {
+          status: "failed",
+          error: "Sale V-1001 already exists with different data",
+        },
+      ]),
     } as unknown as CreateSaleUseCase;
 
     const useCase = new ImportSalesCsvUseCase(createSale);
@@ -68,25 +54,13 @@ describe("ImportSalesCsvUseCase", () => {
     expect(result.errors[0]).toMatchObject({
       row: 2,
       externalId: "V-1001",
-      error: "Sale V-1001 already exists",
+      error: "Sale V-1001 already exists with different data",
     });
-  });
-
-  it("counts failed rows on unexpected errors", async () => {
-    const createSale: CreateSaleUseCase = {
-      execute: jest.fn().mockRejectedValue(new Error("db down")),
-    } as unknown as CreateSaleUseCase;
-
-    const useCase = new ImportSalesCsvUseCase(createSale);
-    const result = await useCase.execute(`${header}\n${validRow}`);
-
-    expect(result.failed).toBe(1);
-    expect(result.errors[0]?.error).toBe("Failed to import row");
   });
 
   it("includes parse errors in failed count", async () => {
     const createSale: CreateSaleUseCase = {
-      execute: jest.fn(),
+      importBatch: jest.fn(),
     } as unknown as CreateSaleUseCase;
 
     const useCase = new ImportSalesCsvUseCase(createSale);
@@ -94,12 +68,12 @@ describe("ImportSalesCsvUseCase", () => {
 
     expect(result.created).toBe(0);
     expect(result.failed).toBe(1);
-    expect(createSale.execute).not.toHaveBeenCalled();
+    expect(createSale.importBatch).not.toHaveBeenCalled();
   });
 
   it("throws on empty csv", async () => {
     const createSale: CreateSaleUseCase = {
-      execute: jest.fn(),
+      importBatch: jest.fn(),
     } as unknown as CreateSaleUseCase;
 
     const useCase = new ImportSalesCsvUseCase(createSale);
@@ -108,11 +82,13 @@ describe("ImportSalesCsvUseCase", () => {
 
   it("processes multiple rows with mixed outcomes", async () => {
     const createSale: CreateSaleUseCase = {
-      execute: jest
+      importBatch: jest
         .fn()
-        .mockResolvedValueOnce({ sale: buildSale({ externalId: "V-1001" }), created: true })
-        .mockResolvedValueOnce({ sale: buildSale({ externalId: "V-1002" }), created: false })
-        .mockRejectedValueOnce(new ConflictError("conflict")),
+        .mockReturnValue([
+          { status: "created" },
+          { status: "skipped" },
+          { status: "failed", error: "conflict" },
+        ]),
     } as unknown as CreateSaleUseCase;
 
     const csv = [

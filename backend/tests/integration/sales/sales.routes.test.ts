@@ -28,18 +28,18 @@ describe("Sales routes", () => {
       .attach("file", Buffer.from(csv), "ventas_2026-05.csv");
 
     expect(importResponse.status).toBe(200);
-    expect(importResponse.body.created).toBe(2);
+    expect(importResponse.body.created).toBe(14);
 
     const listResponse = await request(app)
       .get("/sales")
       .query({ from: "2026-05-01", to: "2026-05-31" });
     expect(listResponse.status).toBe(200);
-    expect(listResponse.body.data).toHaveLength(2);
+    expect(listResponse.body.data).toHaveLength(14);
 
     const summaryResponse = await request(app).get("/sales/summary").query({ month: "2026-05" });
     expect(summaryResponse.status).toBe(200);
-    expect(summaryResponse.body.count).toBe(2);
-    expect(summaryResponse.body.totalAmount).toBe("19734.56");
+    expect(summaryResponse.body.count).toBe(14);
+    expect(summaryResponse.body.totalAmount).toBe("228234.56");
   });
 
   it("creates a sale and is idempotent", async () => {

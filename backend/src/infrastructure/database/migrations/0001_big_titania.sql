@@ -1,0 +1,1 @@
+CREATE INDEX `sales_date_idx` ON `sales` (`date`);
